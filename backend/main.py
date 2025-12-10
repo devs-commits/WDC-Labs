@@ -80,4 +80,5 @@ async def chat(payload: dict):
     return {"reply": resp.text}
 
 # Serve frontend last (so it doesn't intercept API routes)
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+# app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+
