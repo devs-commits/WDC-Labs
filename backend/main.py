@@ -84,6 +84,3 @@ async def chat(payload: dict):
     resp = model.start_chat().send_message(user_msg)
     return {"reply": resp.text}
 
-# Serve frontend last (so it doesn't intercept API routes)
-# app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
-
