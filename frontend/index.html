@@ -127,7 +127,20 @@
 </div>
 
 <script>
-    const backendURL = "https://wdc-labs.onrender.com";
+    // Determine backend URL: localhost for dev, deployed URL for production
+    function getBackendURL() {
+        const host = window.location.hostname;
+        
+        // If running on localhost/127.0.0.1, use local backend
+        if (host === 'localhost' || host === '127.0.0.1') {
+            return 'http://127.0.0.1:8000/chat';
+        }
+        
+        // Otherwise, use deployed backend URL
+        const metaBackend = document.querySelector('meta[name="backend-url"]')?.getAttribute('content');
+        return metaBackend || 'https://wdc-labs.onrender.com/chat';
+    }
+
 
     function getTimestamp() {
         const now = new Date();
@@ -143,7 +156,8 @@
         input.value = "";
 
         try {
-            const response = await fetch(`${backendURL}/chat`, {
+            const url = getBackendURL();
+            const response = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: msg })

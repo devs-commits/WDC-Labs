@@ -1,6 +1,7 @@
 # backend/main.py
 '''
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import google.generativeai as genai
@@ -46,6 +47,7 @@ async def chat(payload: dict):
 '''
 
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -60,10 +62,13 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Configure Gemini API key from environment
+# Load `.env` from project root so GEMINI_API_KEY can be set there for local dev
+load_dotenv()
+
+# Configure Gemini API key from environment (now loaded from .env)
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    raise Exception("GEMINI_API_KEY not set in environment variables!")
+    raise Exception("GEMINI_API_KEY not set in environment variables! Create a .env with GEMINI_API_KEY=<your_key>")
 
 genai.configure(api_key=api_key)
 
