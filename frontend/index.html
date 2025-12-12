@@ -150,13 +150,14 @@
 
     <div class="input-area">
         <div id="imagePreviewContainer"></div>
+        <div id="audioPreviewContainer"></div>
         <div class="input-row">
             <input type="file" id="imageInput" accept="image/*" style="display:none" aria-label="Upload image" />
             <button class="icon-btn" onclick="document.getElementById('imageInput').click()" title="Attach Image" aria-label="Attach Image">+</button>
             
             <input id="inputMsg" type="text" placeholder="Type a message..." aria-label="Message input" title="Type your message here" />
             
-            <button class="icon-btn" id="micBtn" onclick="toggleMicrophone()" title="Record Audio" aria-label="Record Audio">&#128266;</button>
+            <button class="icon-btn" id="micBtn" onclick="handleMicClick()" title="Record Audio" aria-label="Record Audio">&#128266;</button>
         </div>
     </div>
 </div>
@@ -175,6 +176,7 @@
     let audioChunks = [];
     let isRecording = false;
     let selectedImage = null;
+    const micBtn = document.getElementById('micBtn');
 
     // Initialize image input handler
     document.getElementById('imageInput').addEventListener('change', function(e) {
@@ -189,6 +191,26 @@
             reader.readAsDataURL(file);
         }
     });
+
+    // Update mic/send icon based on input content
+    function updateMicSendIcon() {
+        const input = document.getElementById('inputMsg');
+        const hasText = input.value.trim().length > 0;
+        if (hasText) {
+            micBtn.innerHTML = '&#10148;'; // send icon
+            micBtn.title = 'Send message';
+            micBtn.setAttribute('aria-label', 'Send message');
+        } else {
+            micBtn.innerHTML = '&#128266;'; // microphone (restored original glyph)
+            micBtn.title = 'Record Audio';
+            micBtn.setAttribute('aria-label', 'Record Audio');
+        }
+    }
+
+    // Listen for typing to swap icon
+    document.getElementById('inputMsg').addEventListener('input', updateMicSendIcon);
+    // Initialize icon on load
+    updateMicSendIcon();
 
     function getTimestamp() {
         const now = new Date();
@@ -262,8 +284,6 @@
     }
 
     async function toggleMicrophone() {
-        const micBtn = document.getElementById('micBtn');
-        
         if (!isRecording) {
             // Start recording
             try {
@@ -284,9 +304,9 @@
                 mediaRecorder.onstop = async () => {
                     isRecording = false;
                     micBtn.classList.remove('recording');
-                    
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    await sendAudio(audioBlob);
+                    showAudioPreview(audioBlob);
+                    updateMicSendIcon();
                 };
 
                 mediaRecorder.start();
@@ -298,6 +318,50 @@
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
+    }
+
+    // Handle click on the mic/send button: send text when there's text, otherwise toggle mic
+    function handleMicClick() {
+        const input = document.getElementById('inputMsg');
+        const hasText = input.value.trim().length > 0;
+        if (hasText) {
+            if (selectedImage) {
+                sendImageWithText();
+            } else {
+                sendMsg();
+            }
+        } else {
+            toggleMicrophone();
+        }
+    }
+
+    function showAudioPreview(audioBlob) {
+        const container = document.getElementById('audioPreviewContainer');
+        container.innerHTML = '';
+        const url = URL.createObjectURL(audioBlob);
+
+        const preview = document.createElement('div');
+        preview.className = 'audio-preview';
+        preview.innerHTML = `
+            <audio controls src="${url}"></audio>
+            <div style="display:flex;gap:8px;margin-left:8px;">
+                <button class="icon-btn preview-btn" id="sendAudioBtn">&#10148;</button>
+                <button class="icon-btn preview-btn" id="cancelAudioBtn">✖</button>
+            </div>
+        `;
+
+        container.appendChild(preview);
+
+        document.getElementById('sendAudioBtn').addEventListener('click', async () => {
+            // show as user message
+            addMessage('Voice note sent', 'user');
+            await sendAudio(audioBlob);
+            container.innerHTML = '';
+        });
+
+        document.getElementById('cancelAudioBtn').addEventListener('click', () => {
+            container.innerHTML = '';
+        });
     }
 
     async function sendAudio(audioBlob) {
