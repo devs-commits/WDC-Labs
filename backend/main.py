@@ -126,3 +126,7 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
         return {"reply": response.text}
     except Exception as e:
         return {"reply": f"Error processing image and text: {str(e)}"}
+    
+@app.get("/")
+def home():
+    return {"status": "ok", "message": "WDC Labs API is running!"}
