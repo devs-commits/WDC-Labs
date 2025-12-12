@@ -126,7 +126,36 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
         return {"reply": response.text}
     except Exception as e:
         return {"reply": f"Error processing image and text: {str(e)}"}
-    
-@app.get("/")
-def home():
+
+
+# Serve frontend static files and index if available
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+try:
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+except Exception:
+    pass
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    svg = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<rect width="64" height="64" rx="12" ry="12" fill="#2a4fff"/>'
+        '<circle cx="32" cy="32" r="14" fill="#fff"/></svg>'
+    )
+    from fastapi.responses import Response
+    return Response(content=svg, media_type='image/svg+xml')
+
+
+@app.get("/", include_in_schema=False)
+def serve_index():
+    index_path = os.path.join(FRONTEND_DIR, 'index.html')
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type='text/html')
+    return {"status": "ok", "message": "WDC Labs API is running!"}
+
+
+@app.get("/health", include_in_schema=False)
+def health():
     return {"status": "ok", "message": "WDC Labs API is running!"}
