@@ -78,12 +78,31 @@
 
     .input-area {
         display: flex;
+        flex-direction: column;
         padding: 12px;
         border-top: 1px solid #ddd;
         background: #fafafa;
+        gap: 8px;
     }
 
-    input {
+    #imagePreviewContainer {
+        display: flex;
+        justify-content: flex-start;
+    }
+
+    #imagePreview {
+        max-width: 100%;
+        max-height: 100px;
+        border-radius: 8px;
+    }
+
+    .input-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    input[type="text"] {
         flex: 1;
         padding: 12px 15px;
         border-radius: 25px;
@@ -92,20 +111,29 @@
         font-size: 14px;
     }
 
-    button {
-        padding: 12px 20px;
-        margin-left: 10px;
+    .icon-btn {
+        padding: 0;
+        width: 44px;
+        height: 44px;
         border: none;
         background: #2a4fff;
         color: white;
-        font-weight: bold;
-        border-radius: 25px;
+        border-radius: 50%;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
         transition: background 0.2s ease-in-out;
+        flex-shrink: 0;
     }
 
-    button:hover {
+    .icon-btn:hover {
         background: #001fb5;
+    }
+
+    .icon-btn.recording {
+        background: #ff4444;
     }
 
     @keyframes fadeIn {
@@ -121,26 +149,46 @@
     <div class="messages" id="messages"></div>
 
     <div class="input-area">
-        <input id="inputMsg" placeholder="Type a message..." />
-        <button onclick="sendMsg()">Send</button>
+        <div id="imagePreviewContainer"></div>
+        <div class="input-row">
+            <input type="file" id="imageInput" accept="image/*" style="display:none" aria-label="Upload image" />
+            <button class="icon-btn" onclick="document.getElementById('imageInput').click()" title="Attach Image" aria-label="Attach Image">+</button>
+            
+            <input id="inputMsg" type="text" placeholder="Type a message..." aria-label="Message input" title="Type your message here" />
+            
+            <button class="icon-btn" id="micBtn" onclick="toggleMicrophone()" title="Record Audio" aria-label="Record Audio">&#128266;</button>
+        </div>
     </div>
 </div>
 
 <script>
     // Determine backend URL: localhost for dev, deployed URL for production
-    function getBackendURL() {
+    function getBackendURL(endpoint = "") {
         const host = window.location.hostname;
-        
-        // If running on localhost/127.0.0.1, use local backend
-        if (host === 'localhost' || host === '127.0.0.1') {
-            return 'http://127.0.0.1:8000/chat';
-        }
-        
-        // Otherwise, use deployed backend URL
-        const metaBackend = document.querySelector('meta[name="backend-url"]')?.getAttribute('content');
-        return metaBackend || 'https://wdc-labs.onrender.com/chat';
+        const base = (host === 'localhost' || host === '127.0.0.1') 
+            ? 'http://127.0.0.1:8000'
+            : 'https://wdc-labs.onrender.com';
+        return base + (endpoint || '/chat');
     }
 
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let selectedImage = null;
+
+    // Initialize image input handler
+    document.getElementById('imageInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                selectedImage = file;
+                const preview = document.getElementById('imagePreviewContainer');
+                preview.innerHTML = `<img id="imagePreview" src="${event.target.result}" />`;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 
     function getTimestamp() {
         const now = new Date();
@@ -154,10 +202,11 @@
 
         addMessage(msg, "user");
         input.value = "";
+        selectedImage = null;
+        document.getElementById('imagePreviewContainer').innerHTML = '';
 
         try {
-            const url = getBackendURL();
-            const response = await fetch(url, {
+            const response = await fetch(getBackendURL('/chat'), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: msg })
@@ -176,6 +225,104 @@
         }
     }
 
+    async function sendImageWithText() {
+        if (!selectedImage) {
+            return;
+        }
+
+        const textMsg = document.getElementById("inputMsg").value.trim();
+        addMessage(`Image: ${selectedImage.name}${textMsg ? ' + "' + textMsg + '"' : ''}`, "user");
+
+        try {
+            const formData = new FormData();
+            formData.append('file', selectedImage);
+            if (textMsg) formData.append('message', textMsg);
+
+            const response = await fetch(getBackendURL('/image-and-text'), {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                addMessage("Error: Backend returned " + response.status, "bot");
+                return;
+            }
+
+            const data = await response.json();
+            addMessage(data.reply, "bot");
+
+            // Clear image preview
+            selectedImage = null;
+            document.getElementById('imagePreviewContainer').innerHTML = '';
+            document.getElementById('inputMsg').value = '';
+        } catch (error) {
+            addMessage("Error sending image: " + error.message, "bot");
+            console.error(error);
+        }
+    }
+
+    async function toggleMicrophone() {
+        const micBtn = document.getElementById('micBtn');
+        
+        if (!isRecording) {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstart = () => {
+                    isRecording = true;
+                    micBtn.classList.add('recording');
+                    addMessage("Recording...", "user");
+                };
+
+                mediaRecorder.onstop = async () => {
+                    isRecording = false;
+                    micBtn.classList.remove('recording');
+                    
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    await sendAudio(audioBlob);
+                };
+
+                mediaRecorder.start();
+            } catch (error) {
+                addMessage("Microphone access denied: " + error.message, "bot");
+            }
+        } else {
+            // Stop recording
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+    }
+
+    async function sendAudio(audioBlob) {
+        try {
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'audio.wav');
+
+            const response = await fetch(getBackendURL('/transcribe-audio'), {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                addMessage("Error: Backend returned " + response.status, "bot");
+                return;
+            }
+
+            const data = await response.json();
+            addMessage(data.reply, "bot");
+        } catch (error) {
+            addMessage("Error transcribing audio: " + error.message, "bot");
+            console.error(error);
+        }
+    }
+
     function addMessage(text, type) {
         const msgBox = document.getElementById("messages");
         const msg = document.createElement("div");
@@ -190,8 +337,18 @@
         msgBox.appendChild(msg);
         msgBox.scrollTop = msgBox.scrollHeight;
     }
+
+    // Listen for Enter key to send message
+    document.getElementById('inputMsg').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (selectedImage) {
+                sendImageWithText();
+            } else {
+                sendMsg();
+            }
+        }
+    });
 </script>
 </body>
 </html>
-
-
