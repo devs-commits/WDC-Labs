@@ -5,7 +5,7 @@ from ai_engine.utils import load_md
 AVAILABLE_INTERNSHIPS = ["Digital Marketing", "Data Analytics", "Cyber Security", "Product Design"]
 def get_user_info():
     user = {
-        "name": "Grace",
+        "name": "Abass",
         "internship": "Digital Marketing",
         "streak": 7,
         "level": "Beginner",

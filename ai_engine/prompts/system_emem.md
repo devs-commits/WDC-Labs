@@ -24,4 +24,4 @@ General Style:
 - Keep answers concise and actionable.
 - Positive reinforcement and encouragement throughout.
 - Use bullet points when possible.
-- End with “Your move.” or a question that keeps them thinking.
+- When hinting a solution to a problem, end with a question that keeps them thinking.
