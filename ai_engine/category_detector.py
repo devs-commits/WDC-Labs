@@ -1,4 +1,9 @@
+"""
+Docstring for ai_engine.category_detector
+"""
+
 from typing import Tuple
+
 
 
 def detect_category(message: str) -> str:
@@ -10,13 +15,15 @@ def detect_category(message: str) -> str:
     if any(k in m for k in ["policy", "policies", "rule", "rules", "compliance", "wdc policy"]):
         return "policies"
 
-    if any(k in m for k in ["onboard", "onboarding", "first day", "orientation", "how do i start", "i am new", "how do i begin", "internship"]):
+    if any(k in m for k in ["onboard", "onboarding", "first day", "orientation", "how do i start", 
+                            "i am new", "how do i begin", "internship"]):
         return "onboarding"
 
     if any(k in m for k in ["email", "write message", "compose", "draft", "dm", "slack"]):
         return "communication"
 
-    if any(k in m for k in ["help", "confused", "don' t understand", "dont understand", "faq", "question", "how do i", "stuck"]):
+    if any(k in m for k in ["help", "confused", "don' t understand", "dont understand", 
+                            "faq", "question", "how do i", "stuck"]):
         return "faq"
 
     return "default"
