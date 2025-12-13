@@ -10,7 +10,7 @@ def detect_category(message: str) -> str:
     if any(k in m for k in ["policy", "policies", "rule", "rules", "compliance", "wdc policy"]):
         return "policies"
 
-    if any(k in m for k in ["onboard", "onboarding", "first day", "orientation", "how do i start", "i am new", "how do i begin"]):
+    if any(k in m for k in ["onboard", "onboarding", "first day", "orientation", "how do i start", "i am new", "how do i begin", "internship"]):
         return "onboarding"
 
     if any(k in m for k in ["email", "write message", "compose", "draft", "dm", "slack"]):

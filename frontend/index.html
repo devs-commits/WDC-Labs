@@ -389,19 +389,26 @@
     }
 
     function addMessage(text, type) {
-        const msgBox = document.getElementById("messages");
-        const msg = document.createElement("div");
-        msg.classList.add("msg", type);
+    const msgBox = document.getElementById("messages");
+    const msg = document.createElement("div");
+    msg.classList.add("msg", type);
+
+    // 👇 render markdown for bot, plain text for user
+    if (type === "bot") {
+        msg.innerHTML = marked.parse(text);
+    } else {
         msg.textContent = text;
-
-        const ts = document.createElement("div");
-        ts.classList.add("timestamp");
-        ts.textContent = getTimestamp();
-        msg.appendChild(ts);
-
-        msgBox.appendChild(msg);
-        msgBox.scrollTop = msgBox.scrollHeight;
     }
+
+    const ts = document.createElement("div");
+    ts.classList.add("timestamp");
+    ts.textContent = getTimestamp();
+
+    msg.appendChild(ts);
+    msgBox.appendChild(msg);
+    msgBox.scrollTop = msgBox.scrollHeight;
+}
+
 
     // Listen for Enter key to send message
     document.getElementById('inputMsg').addEventListener('keypress', function(e) {
@@ -415,5 +422,8 @@
         }
     });
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 </body>
 </html>

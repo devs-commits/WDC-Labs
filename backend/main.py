@@ -1,17 +1,15 @@
+# The main backend
 import os
-import base64
 import io
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import google.generativeai as genai
 from PIL import Image
-import traceback
-from ai_engine.utils import load_md
-from ai_engine.category_detector import detect_category, get_md_for_category
+from ai_engine.services.chat_service import use_chat
 
 app = FastAPI()
 
@@ -34,7 +32,7 @@ genai.configure(api_key=api_key)
 
 model = genai.GenerativeModel(
     model_name="gemini-2.5-flash-preview-09-2025",
-    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, a . Respond professionally."
+    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for  . Respond professionally."
 )
 
 # Pydantic model for chat endpoint
@@ -44,34 +42,9 @@ class ChatMessage(BaseModel):
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
 async def chat(payload: ChatMessage):
-    try:
-        print(f"[DEBUG] Received message: {payload.message}")
-        user_msg = payload.message
-        # Detect category and load appropriate knowledge
-        category = detect_category(user_msg)
-        system_prompt = load_md("ai_engine/prompts/system_emem.md")
-        md_path = get_md_for_category(category)
-        knowledge = load_md(md_path)
-
-        # Build final prompt sections
-        prompt_sections = []
-        if system_prompt:
-            prompt_sections.append("# System Prompt:\n" + system_prompt)
-        if knowledge:
-            prompt_sections.append("# Knowledge:\n" + knowledge)
-        prompt_sections.append("# User Message:\n" + user_msg)
-
-        final_prompt = "\n\n".join(prompt_sections)
-
-        resp = model.start_chat().send_message(final_prompt)
-        print(f"[DEBUG] Category: {category}, MD used: {md_path}")
-        print(f"[DEBUG] Response: {resp.text}")
-        return {"reply": resp.text, "meta": {"category": category, "md_used": md_path}}
-    except Exception as e:
-        error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
-        print(f"[ERROR] {error_msg}")
-        return {"reply": error_msg}
-
+    response = use_chat(payload)
+    
+    return response
 
 @app.post("/analyze-image")
 async def analyze_image(file: UploadFile = File(...)):
@@ -132,7 +105,7 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
 # Serve frontend static files and index if available
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
 try:
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 except Exception:
     pass
 
@@ -149,14 +122,17 @@ def favicon():
     return Response(content=svg, media_type='image/svg+xml')
 
 
+"""
 @app.get("/", include_in_schema=False)
 def serve_index():
     index_path = os.path.join(FRONTEND_DIR, 'index.html')
     if os.path.exists(index_path):
         return FileResponse(index_path, media_type='text/html')
     return {"status": "ok", "message": "WDC Labs API is running!"}
-
+"""
 
 @app.get("/health", include_in_schema=False)
 def health():
     return {"status": "ok", "message": "WDC Labs API is running!"}
+
+
