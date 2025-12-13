@@ -29,7 +29,7 @@ def use_chat(payload):
         knowledge = load_md(md_path)
         week_task = mock_methods.get_task()
 
-        # Build final prompt sections
+        # Build final prompt sections ...
         prompt_sections = []
         if system_prompt:
             prompt_sections.append("# System Prompt:\n" + system_prompt)
