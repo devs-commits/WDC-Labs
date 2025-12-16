@@ -11,7 +11,7 @@ from ai_engine.category_detector import detect_category, get_md_for_category
 
 model = genai.GenerativeModel(
     model_name="gemini-2.5-flash-preview-09-2025",
-    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for  . Respond professionally."
+    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for gaining real world experiences . Respond professionally."
 )
 
 def use_chat(payload):
@@ -36,7 +36,7 @@ def use_chat(payload):
         if knowledge:
             prompt_sections.append("# Knowledge:\n" + knowledge)
         prompt_sections.append("The User's data is: \n" + user_info)
-        prompt_sections.append("Previous Chat history: " + user_chat_history)
+        #prompt_sections.append("Previous Chat history: " + user_chat_history)
         prompt_sections.append("# User Message:\n" + user_msg)
         prompt_sections.append(" The tasks for the current week te user is in are: /n" + week_task)
 

@@ -1,4 +1,8 @@
-# The main backend
+"""
+The main backend
+"""
+
+
 import os
 import io
 
@@ -25,6 +29,7 @@ load_dotenv()
 
 # Configure Gemini API key from environment (now loaded from .env)
 api_key = os.environ.get("GEMINI_API_KEY")
+
 if not api_key:
     raise Exception("GEMINI_API_KEY not set in environment variables! Create a .env with GEMINI_API_KEY=<your_key>")
 
@@ -32,7 +37,7 @@ genai.configure(api_key=api_key)
 
 model = genai.GenerativeModel(
     model_name="gemini-2.5-flash-preview-09-2025",
-    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for  . Respond professionally."
+    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for gaining experience . Respond professionally."
 )
 
 # Pydantic model for chat endpoint
