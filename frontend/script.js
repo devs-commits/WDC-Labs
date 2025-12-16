@@ -1,6 +1,9 @@
 // Determine backend URL: localhost for dev, deployed URL for production
+
+hostr = "http://127.0.0.1:8000";
 function getBackendURL(endpoint = "") {
-    const host = window.location.hostname;
+    // const host = window.location.hostname;
+        const host = hostr;
     const base = (host === 'localhost' || host === '127.0.0.1')
         ? 'http://127.0.0.1:8000'
         : 'https://wdc-labs.onrender.com';

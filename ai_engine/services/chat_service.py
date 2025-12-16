@@ -14,12 +14,12 @@ model = genai.GenerativeModel(
     system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for gaining real world experiences . Respond professionally."
 )
 
-def use_chat(payload):
+def use_chat(payload, user_info):
     try:
         print(f"[DEBUG] Received message: {payload.message}")
 
         user_msg = payload.message
-        user_info = mock_methods.get_user_info()
+        user_info = user_info
         user_chat_history = mock_methods.get_chat_history()
 
         # Detect category and load appropriate knowledge
@@ -35,10 +35,10 @@ def use_chat(payload):
             prompt_sections.append("# System Prompt:\n" + system_prompt)
         if knowledge:
             prompt_sections.append("# Knowledge:\n" + knowledge)
-        prompt_sections.append("The User's data is: \n" + user_info)
+        prompt_sections.append(f"The User's data is: \n{user_info}")
         #prompt_sections.append("Previous Chat history: " + user_chat_history)
         prompt_sections.append("# User Message:\n" + user_msg)
-        prompt_sections.append(" The tasks for the current week te user is in are: /n" + week_task)
+        prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
 
         final_prompt = "\n\n".join(prompt_sections)
 

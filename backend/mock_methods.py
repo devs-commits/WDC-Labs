@@ -35,5 +35,5 @@ def get_chat_history():
 
 
 def get_task():
-    week_task = load_md("../tasks/digital_marketing/1")
+    week_task = load_md("tasks/digital_marketing/1")
     return week_task
