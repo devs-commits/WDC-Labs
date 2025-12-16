@@ -15,6 +15,8 @@ import google.generativeai as genai
 from PIL import Image
 from ai_engine.services.chat_service import use_chat
 
+from backend import mock_methods
+
 app = FastAPI()
 
 app.add_middleware(
@@ -43,13 +45,19 @@ model = genai.GenerativeModel(
 # Pydantic model for chat endpoint
 class ChatMessage(BaseModel):
     message: str
+    user_info: dict
 
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
 async def chat(payload: ChatMessage):
-    response = use_chat(payload)
+    """Handle chat messages using Gemini model."""
+
+    response = use_chat(payload, payload.user_info)
     
-    return response
+    return {
+        "role": "assistant",
+        "content": response["reply"]
+    }
 
 @app.post("/analyze-image")
 async def analyze_image(file: UploadFile = File(...)):
