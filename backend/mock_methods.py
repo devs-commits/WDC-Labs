@@ -8,7 +8,7 @@ def get_user_info():
     user = {
         "name": "Abass",
         "internship": "Digital Marketing",
-        "streak": 7,
+        "streak": 1,
         "level": "Beginner",
         "current_task": "Audience Research",
         "current_week": 1,

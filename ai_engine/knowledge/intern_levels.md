@@ -1,7 +1,7 @@
 Intern Levels:
 
 Beginner:
-- Needs step-by-step guidance
+- Needs clarified Internship Tasks
 
 Intermediate:
 - Can complete tasks with light hints
