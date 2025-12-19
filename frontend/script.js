@@ -1,13 +1,6 @@
-// Determine backend URL: localhost for dev, deployed URL for production
-
-hostr = "http://127.0.0.1:8000";
-function getBackendURL(endpoint = "") {
-    // const host = window.location.hostname;
-        const host = hostr;
-    const base = (host === 'localhost' || host === '127.0.0.1')
-        ? 'http://127.0.0.1:8000'
-        : 'https://wdc-labs.onrender.com';
-    return base + (endpoint || '/chat');
+// ================= BACKEND URL =================
+function getBackendURL(endpoint = "/chat") {
+    return "http://127.0.0.1:8000" + endpoint;
 }
 
 // ======= Global Variables =======
@@ -38,26 +31,25 @@ function updateMicSendIcon() {
     const input = document.getElementById('inputMsg');
     const hasText = input.value.trim().length > 0;
     if (hasText) {
-        micBtn.innerHTML = '&#10148;'; // send icon
+        micBtn.innerHTML = '&#10148;';
         micBtn.title = 'Send message';
-        micBtn.setAttribute('aria-label', 'Send message');
     } else {
-        micBtn.innerHTML = '&#128266;'; // microphone
+        micBtn.innerHTML = '&#128266;';
         micBtn.title = 'Record Audio';
-        micBtn.setAttribute('aria-label', 'Record Audio');
     }
 }
 
 document.getElementById('inputMsg').addEventListener('input', updateMicSendIcon);
-updateMicSendIcon(); // initialize on load
+updateMicSendIcon();
 
 // ======= Timestamp =======
 function getTimestamp() {
     const now = new Date();
-    return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    return now.getHours().toString().padStart(2,'0') + ':' +
+           now.getMinutes().toString().padStart(2,'0');
 }
 
-// ======= Show / Hide Thinking Indicator =======
+// ======= Thinking Indicator =======
 function showThinking() {
     if (!thinkingEl) {
         thinkingEl = document.createElement("div");
@@ -68,7 +60,6 @@ function showThinking() {
             <span class="dot"></span>
         `;
         document.querySelector(".messages").appendChild(thinkingEl);
-        document.querySelector(".messages").scrollTop = document.querySelector(".messages").scrollHeight;
     }
 }
 
@@ -79,17 +70,14 @@ function hideThinking() {
     }
 }
 
-// ======= Add Message to Chat =======
+// ======= Add Message =======
 function addMessage(text, type) {
     const msgBox = document.getElementById("messages");
     const msg = document.createElement("div");
     msg.classList.add("msg", type);
 
-    if (type === "bot") {
-        msg.innerHTML = marked.parse(text); // render markdown
-    } else {
-        msg.textContent = text;
-    }
+    if (type === "bot") msg.innerHTML = marked.parse(text);
+    else msg.textContent = text;
 
     const ts = document.createElement("div");
     ts.classList.add("timestamp");
@@ -101,35 +89,34 @@ function addMessage(text, type) {
 }
 
 // ======= Send Text Message =======
-async function sendMsg() {
+async function sendMsg(payload, chat_history) {
     const input = document.getElementById("inputMsg");
     const msg = input.value.trim();
     if (!msg) return;
 
     addMessage(msg, "user");
     input.value = "";
-    selectedImage = null;
-    document.getElementById('imagePreviewContainer').innerHTML = '';
     updateMicSendIcon();
-
     showThinking();
 
     try {
-        const response = await fetch(getBackendURL('/chat'), {
+        const response = await fetch(getBackendURL("/chat"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: msg })
+            body: JSON.stringify({
+                message: msg,
+                user_info: {
+                    role: "intern",
+                    source: "web"
+                }
+                // chat_history:
+            })
         });
 
         hideThinking();
 
-        if (!response.ok) {
-            addMessage("Error: Backend returned " + response.status, "bot");
-            return;
-        }
-
         const data = await response.json();
-        addMessage(data.reply, "bot");
+        addMessage(data.content || data.reply, "bot");
     } catch (error) {
         hideThinking();
         addMessage("Error: Could not connect to backend.", "bot");
@@ -142,8 +129,7 @@ async function sendImageWithText() {
     if (!selectedImage) return;
 
     const textMsg = document.getElementById("inputMsg").value.trim();
-    addMessage(`Image: ${selectedImage.name}${textMsg ? ' + "' + textMsg + '"' : ''}`, "user");
-
+    addMessage(`Image sent${textMsg ? ": " + textMsg : ""}`, "user");
     showThinking();
 
     try {
@@ -157,12 +143,6 @@ async function sendImageWithText() {
         });
 
         hideThinking();
-
-        if (!response.ok) {
-            addMessage("Error: Backend returned " + response.status, "bot");
-            return;
-        }
-
         const data = await response.json();
         addMessage(data.reply, "bot");
 
@@ -172,120 +152,69 @@ async function sendImageWithText() {
         updateMicSendIcon();
     } catch (error) {
         hideThinking();
-        addMessage("Error sending image: " + error.message, "bot");
-        console.error(error);
+        addMessage("Error sending image.", "bot");
     }
 }
 
 // ======= Audio Recording =======
 async function toggleMicrophone() {
     if (!isRecording) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
 
-            mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            isRecording = false;
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            await sendAudio(audioBlob);
+        };
 
-            mediaRecorder.onstart = () => {
-                isRecording = true;
-                micBtn.classList.add('recording');
-                addMessage("Recording...", "user");
-            };
-
-            mediaRecorder.onstop = async () => {
-                isRecording = false;
-                micBtn.classList.remove('recording');
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                showAudioPreview(audioBlob);
-                updateMicSendIcon();
-            };
-
-            mediaRecorder.start();
-        } catch (error) {
-            addMessage("Microphone access denied: " + error.message, "bot");
-        }
+        mediaRecorder.start();
+        isRecording = true;
+        addMessage("Recording...", "user");
     } else {
         mediaRecorder.stop();
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
     }
 }
 
-// ======= Mic / Send Button Handler =======
-function handleMicClick() {
-    const input = document.getElementById('inputMsg');
-    const hasText = input.value.trim().length > 0;
-
-    if (hasText) {
-        if (selectedImage) sendImageWithText();
-        else sendMsg();
-    } else {
-        toggleMicrophone();
-    }
-}
-
-// ======= Audio Preview & Send =======
-function showAudioPreview(audioBlob) {
-    const container = document.getElementById('audioPreviewContainer');
-    container.innerHTML = '';
-    const url = URL.createObjectURL(audioBlob);
-
-    const preview = document.createElement('div');
-    preview.className = 'audio-preview';
-    preview.innerHTML = `
-        <audio controls src="${url}"></audio>
-        <div style="display:flex;gap:8px;margin-left:8px;">
-            <button class="icon-btn preview-btn" id="sendAudioBtn">&#10148;</button>
-            <button class="icon-btn preview-btn" id="cancelAudioBtn">✖</button>
-        </div>
-    `;
-
-    container.appendChild(preview);
-
-    document.getElementById('sendAudioBtn').addEventListener('click', async () => {
-        addMessage('Voice note sent', 'user');
-        await sendAudio(audioBlob);
-        container.innerHTML = '';
-    });
-
-    document.getElementById('cancelAudioBtn').addEventListener('click', () => {
-        container.innerHTML = '';
-    });
-}
-
+// ======= Send Audio =======
 async function sendAudio(audioBlob) {
     showThinking();
 
-    try {
-        const formData = new FormData();
-        formData.append('file', audioBlob, 'audio.wav');
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.wav');
 
+    try {
         const response = await fetch(getBackendURL('/transcribe-audio'), {
             method: "POST",
             body: formData
         });
 
         hideThinking();
-
-        if (!response.ok) {
-            addMessage("Error: Backend returned " + response.status, "bot");
-            return;
-        }
-
         const data = await response.json();
         addMessage(data.reply, "bot");
     } catch (error) {
         hideThinking();
-        addMessage("Error transcribing audio: " + error.message, "bot");
-        console.error(error);
+        addMessage("Audio transcription failed.", "bot");
     }
 }
 
-// ======= Enter Key to Send =======
+// ======= Mic / Send Button =======
+function handleMicClick() {
+    const input = document.getElementById('inputMsg');
+    if (input.value.trim()) {
+        selectedImage ? sendImageWithText() : sendMsg();
+    } else {
+        toggleMicrophone();
+    }
+}
+
+// ======= Enter to Send =======
 document.getElementById('inputMsg').addEventListener('keypress', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (selectedImage) sendImageWithText();
-        else sendMsg();
+        selectedImage ? sendImageWithText() : sendMsg();
     }
 });

@@ -1,7 +1,3 @@
-"""
-The main backend
-"""
-
 
 import os
 import io
@@ -13,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import google.generativeai as genai
 from PIL import Image
-from ai_engine.services.chat_service import use_chat
+from ai_engine.services.chat_service import use_chat, get_model
 
 from backend import mock_methods
 
@@ -37,22 +33,19 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash-preview-09-2025",
-    system_instruction="YOU ARE MISS EMEM OBONG: The kind and respectful Director of Internships at WDC Labs, an Internship portal for gaining experience . Respond professionally."
-)
-
 # Pydantic model for chat endpoint
 class ChatMessage(BaseModel):
     message: str
     user_info: dict
+    chat_history: list
+    greeted_today: bool
 
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
 async def chat(payload: ChatMessage):
     """Handle chat messages using Gemini model."""
 
-    response = use_chat(payload, payload.user_info)
+    response = use_chat(payload)
     
     return {
         "role": "assistant",
@@ -68,7 +61,7 @@ async def analyze_image(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(image_data))
         
         # Send image to Gemini for analysis
-        response = model.generate_content([
+        response = get_model().generate_content([
             "Analyze this image and provide insights professionally.",
             image
         ])
@@ -90,7 +83,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         
         # Send audio to Gemini for transcription and analysis
         chat_prompt = "Transcribe this audio and provide a response as Miss Emem."
-        response = model.generate_content([chat_prompt, audio_file])
+        response = get_model().generate_content([chat_prompt, audio_file])
         
         # Clean up uploaded file
         genai.delete_file(audio_file.name)
@@ -108,7 +101,7 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
         image = Image.open(io.BytesIO(image_data))
         
         prompt = message if message else "Analyze this image."
-        response = model.generate_content([prompt, image])
+        response = get_model().generate_content([prompt, image])
         
         return {"reply": response.text}
     except Exception as e:
