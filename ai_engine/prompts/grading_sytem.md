@@ -90,6 +90,8 @@ Your original feedback format is good, but 3 strengths + 3 weaknesses every day 
 
 Recommended Feedback Format
 
+If it is not relevant, don't offer any advice or feedback, just reject it with a 0/100 score
+
 1–2 sentence performance summary (neutral, professional)
 
 2 strengths (only if meaningful)
