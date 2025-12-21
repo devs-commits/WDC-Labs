@@ -2,6 +2,7 @@
 import os
 import io
 import urllib.request
+import urllib.error
 import mimetypes
 
 from dotenv import load_dotenv
@@ -48,6 +49,9 @@ class Submission(BaseModel):
     userId: str
     fileUrl: str
     fileName: str
+    taskTitle: str | None = None
+    taskContent: str | None = None
+    chatHistory: list | None = None
 
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
@@ -121,10 +125,19 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
 def analyze_submission(submission: Submission):
     """Analyze a file submission (image or text) from a URL."""
     try:
+        print(f"Analyzing submission for Task {submission.taskId}. URL: {submission.fileUrl}")
+        
         # Download the file
-        # Note: Using blocking urllib in a sync path function (def, not async def)
-        # runs in a threadpool, which is safe for blocking I/O.
-        with urllib.request.urlopen(submission.fileUrl) as response:
+        # Handle potential spaces in URL if not encoded
+        url = submission.fileUrl.replace(" ", "%20")
+        
+        # Add User-Agent header to avoid potential blocking and ensure valid request
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'WDC-Labs-Backend/1.0'}
+        )
+        
+        with urllib.request.urlopen(req) as response:
             file_data = response.read()
             
         # Determine file type
@@ -133,12 +146,23 @@ def analyze_submission(submission: Submission):
         grading_system = load_md("ai_engine/prompts/grading_sytem.md")
 
         # Construct prompt
-        # Ideally, we would fetch the task details using submission.taskId
-        # For now, we use a generic prompt.
+        task_context = ""
+        if submission.taskTitle:
+            task_context += f"Task Title: {submission.taskTitle}\n"
+        if submission.taskContent:
+            task_context += f"Task Description: {submission.taskContent}\n"
+            
+        history_context = ""
+        if submission.chatHistory:
+             history_context = f"Previous Chat History:\n{submission.chatHistory}\n"
+
         prompt = (
             f"You are an expert mentor. A student has submitted the following file "
-            f"for Task ID {submission.taskId}. Please analyze it and provide "
-            f"constructive feedback, highlighting what is good and what needs improvement. "
+            f"for Task ID {submission.taskId}.\n\n"
+            f"{task_context}\n"
+            f"{history_context}\n"
+            f"Please analyze the submission against the task requirements. "
+            f"Provide constructive feedback, highlighting what is good and what needs improvement. "
             f"Be encouraging but professional.\n\n"
             f"Use the following grading system guide:\n{grading_system}"
         )
