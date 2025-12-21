@@ -1,9 +1,8 @@
 
 import os
 import io
-import urllib.request
-import urllib.error
 import mimetypes
+import requests
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File
@@ -127,18 +126,13 @@ def analyze_submission(submission: Submission):
     try:
         print(f"Analyzing submission for Task {submission.taskId}. URL: {submission.fileUrl}")
         
-        # Download the file
-        # Handle potential spaces in URL if not encoded
-        url = submission.fileUrl.replace(" ", "%20")
+        # Download the file using requests
+        response = requests.get(submission.fileUrl, headers={'User-Agent': 'WDC-Labs-Backend/1.0'})
         
-        # Add User-Agent header to avoid potential blocking and ensure valid request
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'WDC-Labs-Backend/1.0'}
-        )
-        
-        with urllib.request.urlopen(req) as response:
-            file_data = response.read()
+        if response.status_code != 200:
+            return {"reply": f"Error downloading file: HTTP {response.status_code} - {response.text[:200]}"}
+            
+        file_data = response.content
             
         # Determine file type
         mime_type, _ = mimetypes.guess_type(submission.fileName)
@@ -163,7 +157,7 @@ def analyze_submission(submission: Submission):
             f"{history_context}\n"
             f"Please analyze the submission against the task requirements. "
             f"Provide constructive feedback, highlighting what is good and what needs improvement. "
-            f"Be encouraging but professional.\n\n"
+            f"Be professional.\n\n"
             f"Use the following grading system guide:\n{grading_system}"
         )
         
@@ -175,13 +169,25 @@ def analyze_submission(submission: Submission):
                 content.append(image)
             except Exception:
                  return {"reply": "Error: The file appears to be an image but could not be opened."}
+        elif mime_type == 'application/pdf':
+            content.append({
+                "mime_type": "application/pdf",
+                "data": file_data
+            })
+        elif mime_type and (mime_type.startswith('audio') or mime_type.startswith('video')):
+             content.append({
+                "mime_type": mime_type,
+                "data": file_data
+            })
         else:
             # Assume text/code
             try:
                 text_content = file_data.decode('utf-8')
                 content.append(f"File Content ({submission.fileName}):\n{text_content}")
             except UnicodeDecodeError:
-                return {"reply": "Error: Could not decode file as text, and it does not appear to be an image."}
+                # Fallback for other binary types that might be supported by Gemini (e.g. CSV if not detected as text)
+                # or just to give a better error message.
+                return {"reply": f"Error: The file '{submission.fileName}' ({mime_type}) is not a supported text, image, PDF, audio, or video file."}
 
         model = get_model()
         response = model.generate_content(content)

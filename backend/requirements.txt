@@ -4,3 +4,4 @@ google-generativeai
 google-api-core
 python-dotenv
 Pillow
+requests
