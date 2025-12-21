@@ -2,6 +2,7 @@
 import os
 import io
 import urllib.request
+import urllib.error
 import mimetypes
 
 from dotenv import load_dotenv
@@ -124,10 +125,19 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
 def analyze_submission(submission: Submission):
     """Analyze a file submission (image or text) from a URL."""
     try:
+        print(f"Analyzing submission for Task {submission.taskId}. URL: {submission.fileUrl}")
+        
         # Download the file
-        # Note: Using blocking urllib in a sync path function (def, not async def)
-        # runs in a threadpool, which is safe for blocking I/O.
-        with urllib.request.urlopen(submission.fileUrl) as response:
+        # Handle potential spaces in URL if not encoded
+        url = submission.fileUrl.replace(" ", "%20")
+        
+        # Add User-Agent header to avoid potential blocking and ensure valid request
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'WDC-Labs-Backend/1.0'}
+        )
+        
+        with urllib.request.urlopen(req) as response:
             file_data = response.read()
             
         # Determine file type
