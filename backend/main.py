@@ -1,6 +1,8 @@
 
 import os
 import io
+import urllib.request
+import mimetypes
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File
@@ -10,6 +12,7 @@ from pydantic import BaseModel
 import google.generativeai as genai
 from PIL import Image
 from ai_engine.services.chat_service import use_chat, get_model
+from ai_engine.utils import load_md
 
 from backend import mock_methods
 
@@ -39,6 +42,12 @@ class ChatMessage(BaseModel):
     user_info: dict
     chat_history: list
     greeted_today: bool
+
+class Submission(BaseModel):
+    taskId: int
+    userId: str
+    fileUrl: str
+    fileName: str
 
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
@@ -106,6 +115,57 @@ async def image_and_text(file: UploadFile = File(...), message: str = ""):
         return {"reply": response.text}
     except Exception as e:
         return {"reply": f"Error processing image and text: {str(e)}"}
+
+
+@app.post("/analyze-submission")
+def analyze_submission(submission: Submission):
+    """Analyze a file submission (image or text) from a URL."""
+    try:
+        # Download the file
+        # Note: Using blocking urllib in a sync path function (def, not async def)
+        # runs in a threadpool, which is safe for blocking I/O.
+        with urllib.request.urlopen(submission.fileUrl) as response:
+            file_data = response.read()
+            
+        # Determine file type
+        mime_type, _ = mimetypes.guess_type(submission.fileName)
+        
+        grading_system = load_md("ai_engine/prompts/grading_sytem.md")
+
+        # Construct prompt
+        # Ideally, we would fetch the task details using submission.taskId
+        # For now, we use a generic prompt.
+        prompt = (
+            f"You are an expert mentor. A student has submitted the following file "
+            f"for Task ID {submission.taskId}. Please analyze it and provide "
+            f"constructive feedback, highlighting what is good and what needs improvement. "
+            f"Be encouraging but professional.\n\n"
+            f"Use the following grading system guide:\n{grading_system}"
+        )
+        
+        content = [prompt]
+        
+        if mime_type and mime_type.startswith('image'):
+            try:
+                image = Image.open(io.BytesIO(file_data))
+                content.append(image)
+            except Exception:
+                 return {"reply": "Error: The file appears to be an image but could not be opened."}
+        else:
+            # Assume text/code
+            try:
+                text_content = file_data.decode('utf-8')
+                content.append(f"File Content ({submission.fileName}):\n{text_content}")
+            except UnicodeDecodeError:
+                return {"reply": "Error: Could not decode file as text, and it does not appear to be an image."}
+
+        model = get_model()
+        response = model.generate_content(content)
+        
+        return {"reply": response.text}
+
+    except Exception as e:
+        return {"reply": f"Error analyzing submission: {str(e)}"}
 
 
 # Serve frontend static files and index if available
