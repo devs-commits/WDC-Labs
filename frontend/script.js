@@ -108,8 +108,9 @@ async function sendMsg(payload, chat_history) {
                 user_info: {
                     role: "intern",
                     source: "web"
-                }
-                // chat_history:
+                },
+                chat_history: chat_history,
+                greeted_today: false
             })
         });
 

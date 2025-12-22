@@ -109,11 +109,3 @@ realistic
 non-patronizing
 
 manager-like
-
-Why this rubric works with your system prompt
-
-- Maps directly to your internal evaluation criteria
--  Drives adaptive task difficulty
-- Encourages real-world thinking
-- Discourages box-ticking behavior
-- Feels like a performance review, not grading homework
