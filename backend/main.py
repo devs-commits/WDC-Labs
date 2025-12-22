@@ -55,7 +55,10 @@ class Submission(BaseModel):
 class TaskGenerationRequest(BaseModel):
     track: str
     experience_level: str
+    task_number: int    
+    previous_task_performance: str | None = None
 
+    
 class HintRequest(BaseModel):
     taskId: int
     taskTitle: str
@@ -168,7 +171,10 @@ def analyze_submission(submission: Submission):
             f"Please analyze the submission against the task requirements. "
             f"Provide constructive feedback, highlighting what is good and what needs improvement. "
             f"Be professional.\n\n"
-            f"Use the following grading system guide:\n{grading_system}"
+            f"Use the following grading system guide:\n{grading_system}\n\n"
+            f"IMPORTANT: At the very end of your response, you MUST include a JSON object with the score and completion status. "
+            f"Format: ```json\n{{\"score\": <0-100>, \"completed\": <true/false>}}\n```. "
+            f"Mark 'completed': true ONLY if the score is greater than 80."
         )
         
         content = [prompt]
@@ -202,7 +208,31 @@ def analyze_submission(submission: Submission):
         model = get_model()
         response = model.generate_content(content)
         
-        return {"reply": response.text}
+        # Extract JSON from response if present
+        import re
+        import json
+        
+        reply_text = response.text
+        completed = False
+        score = 0
+        
+        # Look for JSON block at the end
+        json_match = re.search(r"```json\n(.*?)\n```", reply_text, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(1))
+                score = data.get("score", 0)
+                completed = data.get("completed", False)
+                # Remove the JSON block from the visible reply so the user doesn't see raw JSON
+                reply_text = reply_text.replace(json_match.group(0), "").strip()
+            except:
+                pass
+
+        return {
+            "reply": reply_text,
+            "score": score,
+            "completed": completed
+        }
 
     except Exception as e:
         return {"reply": f"Error analyzing submission: {str(e)}"}
@@ -221,6 +251,8 @@ def generate_tasks(request: TaskGenerationRequest):
         # Fill in the details
         prompt = prompt_template.replace("{track}", request.track)
         prompt = prompt.replace("{experience_level}", request.experience_level)
+        prompt = prompt.replace("{task_number}", str(request.task_number))
+        prompt = prompt.replace("{previous_performance}", request.previous_task_performance or "N/A (First Task)")
 
         # Get model with JSON generation config
         model = genai.GenerativeModel(
