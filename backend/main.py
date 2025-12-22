@@ -52,6 +52,16 @@ class Submission(BaseModel):
     taskContent: str | None = None
     chatHistory: list | None = None
 
+class TaskGenerationRequest(BaseModel):
+    track: str
+    experience_level: str
+
+class HintRequest(BaseModel):
+    taskId: int
+    taskTitle: str
+    taskContent: str
+    userContext: str | None = None
+
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
 async def chat(payload: ChatMessage):
@@ -196,6 +206,61 @@ def analyze_submission(submission: Submission):
 
     except Exception as e:
         return {"reply": f"Error analyzing submission: {str(e)}"}
+
+
+@app.post("/generate-tasks")
+def generate_tasks(request: TaskGenerationRequest):
+    """Generate a list of 10 personalized tasks using Gemini."""
+    try:
+        # Load the prompt template
+        prompt_template = load_md("ai_engine/prompts/task_generation.md")
+        
+        if not prompt_template:
+            return {"error": "Could not load task generation prompt."}
+
+        # Fill in the details
+        prompt = prompt_template.replace("{track}", request.track)
+        prompt = prompt.replace("{experience_level}", request.experience_level)
+
+        # Get model with JSON generation config
+        model = genai.GenerativeModel(
+            model_name=os.environ.get("GENAI_MODEL", "gemini-2.5-flash"),
+            generation_config={"response_mime_type": "application/json"}
+        )
+        
+        response = model.generate_content(prompt)
+        
+        # Return the raw JSON string (FastAPI will serialize it as a string field, 
+        # or we can parse it to return a real JSON object)
+        import json
+        try:
+            tasks_data = json.loads(response.text)
+            return tasks_data
+        except json.JSONDecodeError:
+            return {"error": "Failed to parse AI response", "raw": response.text}
+
+    except Exception as e:
+        return {"error": f"Error generating tasks: {str(e)}"}
+
+
+@app.post("/get-hint")
+def get_hint(request: HintRequest):
+    """Generate a hint for a specific task."""
+    try:
+        prompt_template = load_md("ai_engine/prompts/hint.md")
+        if not prompt_template:
+            return {"error": "Could not load hint prompt."}
+        
+        prompt = prompt_template.replace("{task_title}", request.taskTitle)
+        prompt = prompt.replace("{task_content}", request.taskContent)
+        prompt = prompt.replace("{user_context}", request.userContext or "No specific question asked.")
+        
+        model = get_model()
+        response = model.generate_content(prompt)
+        
+        return {"hint": response.text}
+    except Exception as e:
+        return {"error": f"Error generating hint: {str(e)}"}
 
 
 # Serve frontend static files and index if available
