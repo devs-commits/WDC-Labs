@@ -1,4 +1,6 @@
-
+"""
+Docstring for backend.main
+"""
 
 import os
 import io
@@ -110,22 +112,11 @@ def get_location_from_ip(ip: str):
 @app.post("/chat")
 async def chat(payload: ChatMessage, request: Request):
     """Handle chat messages using Gemini model with location awareness."""
-
-    # === HARDCODED LOCATION FOR TESTING ===
-    # Comment out or remove this block when you're done testing
-    location = {
-        "country": "India",
-        "country_code": "IN",
-        "city": "Mumbai"
-    }
-    client_ip = "203.192.1.1"  # Fake IP, just for logs
-
-    # === UNCOMMENT BELOW FOR REAL IP LOOKUP (when done testing) ===
-    # client_ip = request.client.host
-    # forwarded = request.headers.get("x-forwarded-for")
-    # if forwarded:
-    #     client_ip = forwarded.split(",")[0].strip()
-    # location = get_location_from_ip(client_ip)
+    client_ip = request.client.host
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    location = get_location_from_ip(client_ip)
 
     # Inject location into user_info
     payload.user_info.update({
