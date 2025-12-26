@@ -2,7 +2,7 @@ from ai_engine.utils import load_md
 
 # These are mock versions of internal backend sevrices we would call
 
-AVAILABLE_INTERNSHIPS = ["Digital Marketing", "Data Analytics", "Cyber Security", "Product Design"]
+AVAILABLE_INTERNSHIPS = ["Digital Marketing", "Cyber Security", "Data Analytics"]
 
 def get_user_info():
     user = {

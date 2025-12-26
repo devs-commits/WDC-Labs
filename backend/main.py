@@ -7,6 +7,7 @@ import requests
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -66,17 +67,89 @@ class HintRequest(BaseModel):
     taskContent: str
     userContext: str | None = None
 
+
+
+
+def get_location_from_ip(ip: str):
+    """
+    Get approximate location from IP using ip-api.com
+    Returns dict with country, country_code, city
+    """
+    # Skip for local development IPs
+    if ip in {"127.0.0.1", "::1", "localhost"}:
+        return {
+            "country": "Local Development",
+            "country_code": "DEV",
+            "city": "Your Computer"
+        }
+
+    try:
+        # ip-api.com is free, no API key, rate-limited but fine for low-medium traffic
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+        data = response.json()
+
+        if data.get("status") == "success":
+            return {
+                "country": data.get("country"),
+                "country_code": data.get("countryCode"),  # e.g., "NG", "US", "GB"
+                "city": data.get("city"),
+                "region": data.get("regionName")
+            }
+    except Exception as e:
+        print(f"Geolocation error: {e}")
+
+    # Fallback
+    return {
+        "country": "Unknown",
+        "country_code": "XX",
+        "city": "Unknown"
+    }
+
+
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
-async def chat(payload: ChatMessage):
-    """Handle chat messages using Gemini model."""
+async def chat(payload: ChatMessage, request: Request):
+    """Handle chat messages using Gemini model with location awareness."""
 
-    response = use_chat(payload)
-    
-    return {
-        "role": "assistant",
-        "content": response["reply"]
+    # === HARDCODED LOCATION FOR TESTING ===
+    # Comment out or remove this block when you're done testing
+    location = {
+        "country": "India",
+        "country_code": "IN",
+        "city": "Mumbai"
     }
+    client_ip = "203.192.1.1"  # Fake IP, just for logs
+
+    # === UNCOMMENT BELOW FOR REAL IP LOOKUP (when done testing) ===
+    # client_ip = request.client.host
+    # forwarded = request.headers.get("x-forwarded-for")
+    # if forwarded:
+    #     client_ip = forwarded.split(",")[0].strip()
+    # location = get_location_from_ip(client_ip)
+
+    # Inject location into user_info
+    payload.user_info.update({
+        # "ip": client_ip,        # Optional: comment out if you don't want IP shown
+        "country": location["country"],
+        "country_code": location["country_code"],
+        "city": location["city"]
+    })
+
+    print(f"[TEST MODE] Simulating chat from {location['city']}, {location['country']} ({location['country_code']})")
+
+    # Call your chat function
+    response = use_chat(payload)
+
+    return {
+    "role": "assistant",
+    "content": response["reply"],
+    "user_location": {              
+        "city": location["city"],
+        "country": location["country"],
+        "country_code": location["country_code"]
+    }
+}
+
 
 @app.post("/analyze-image")
 async def analyze_image(file: UploadFile = File(...)):

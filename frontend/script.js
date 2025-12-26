@@ -49,7 +49,7 @@ function getTimestamp() {
            now.getMinutes().toString().padStart(2,'0');
 }
 
-// ======= Thinking Indicator =======
+// ======= Thinking Indicator now *Typing* =======
 function showThinking() {
     if (!thinkingEl) {
         thinkingEl = document.createElement("div");

@@ -37,12 +37,9 @@ Role & Seniority Alignment
 Tailor language to the user’s internship track:
 
 Digital Marketing
-
+Cybersecurity
 Data Analytics
 
-Cybersecurity
-
-Product Design
 
 Match tone to:
 

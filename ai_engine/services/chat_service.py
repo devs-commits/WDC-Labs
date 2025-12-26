@@ -12,11 +12,9 @@ from ai_engine.utils import load_md
 from ai_engine.category_detector import detect_category, get_md_for_category
 from backend import mock_methods
 
-"""ai_engine.services.chat_service
-
-This module should not perform network or API calls at import time. The
-Generative AI model and chats are initialized lazily inside `use_chat` to
-avoid failures during application startup.
+""" 
+ai_engine.services.chat_service. This module should not perform network or API calls at import time. 
+The Generative AI model and chats are initialized lazily inside `use_chat` to avoid failures during application startup. 
 """
 
 GREETING_RULES = (
@@ -46,7 +44,7 @@ def use_chat(payload):
         system_prompt = load_md("ai_engine/prompts/system_emem.md")
         md_path = get_md_for_category(category)
         knowledge = load_md(md_path)
-        week_task = mock_methods.get_task()
+        # week_task = mock_methods.get_task()
 
         # Build final prompt sections ...
         prompt_sections = []
@@ -54,10 +52,34 @@ def use_chat(payload):
             prompt_sections.append("# System Prompt:\n" + system_prompt)
         if knowledge:
             prompt_sections.append("# Knowledge:\n" + knowledge)
-        prompt_sections.append(f"The User's data is: \n{user_info}")
+        # Better formatting and guidance for location
+            location_info = ""
+            country = user_info.get("country", "an unknown location")
+            country_code = user_info.get("country_code", "XX")
+            city = user_info.get("city")
+
+            if country and country != "Unknown" and country != "Local Development":
+                location_info = f"The user is currently in {city}, {country}"
+                if country_code != "XX":
+                    location_info += f" ({country_code})"
+                location_info += "."
+            else:
+                location_info = "The user's location is not available."
+
+        prompt_sections.append(f"""User Profile:
+            - Name/ID: {user_info.get('name', 'Student')} (user_id: {user_info.get('user_id')})
+            - Current Task: {user_info.get('task_title', 'General learning')}
+            - Location: {location_info}
+
+            Use the location wisely:
+            - Greet with time-of-day awareness if appropriate (e.g., "Good morning" in their local time).
+            - Use culturally relevant examples when possible (e.g., local currency, events, tech communities).
+            - Reference nearby cities or common practices if it helps explain concepts.
+            - NEVER mention IP addresses or technical details — keep it natural and warm.
+            """)
         prompt_sections.append(f"Previous Chat history: {user_chat_history}")
         prompt_sections.append("# User Message:\n" + user_msg)
-        prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
+# prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
         prompt_sections.append(f"Greeting rules: {GREETING_RULES} greeted_today: {greeted_today}")
 
         final_prompt = "\n\n".join(prompt_sections)
