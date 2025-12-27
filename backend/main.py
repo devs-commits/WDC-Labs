@@ -61,26 +61,68 @@ class TaskGenerationRequest(BaseModel):
     experience_level: str
     task_number: int    
     previous_task_performance: str | None = None
+    user_city: str | None = None        # e.g., "Lagos"
+    user_country: str | None = None     # e.g., "Nigeria"
+    user_country_code: str | None = None  # e.g., "NG"
 
-    
+
 class HintRequest(BaseModel):
     taskId: int
     taskTitle: str
     taskContent: str
     userContext: str | None = None
 
+class CVGenerationRequest(BaseModel):
+    user_id: str
+    user_name: str
+    track: str
+    start_date: str  # e.g., "2025-12-01"
+    end_date: str | None = None  # Optional, use "Present" if ongoing
 
-# Define API routes BEFORE mounting static files
+
 @app.post("/chat")
 async def chat(payload: ChatMessage):
-    """Handle chat messages using Gemini model."""
+    """Handle chat messages using Gemini model with frontend-provided location."""
 
-    response = use_chat(payload.user_info)
+    user_info = payload.user_info
+    raw_location = user_info.get("location")
+
+    # Normalize location into standard fields
+    if isinstance(raw_location, dict):
+        city = raw_location.get("city") or raw_location.get("City") or "your city"
+        country = raw_location.get("country") or raw_location.get("Country") or "your country"
+        country_code = raw_location.get("country_code") or raw_location.get("countryCode") or ""
+    elif isinstance(raw_location, str):
+        # If frontend sends a string like "Lagos, Nigeria"
+        parts = [p.strip() for p in raw_location.split(",")]
+        city = parts[0] if len(parts) > 0 else "your city"
+        country = parts[1] if len(parts) > 1 else "your country"
+        country_code = ""
+    else:
+        # No location provided
+        city = "your city"
+        country = "your country"
+        country_code = ""
+
+    # Inject clean location fields into user_info (for use in prompt)
+    user_info.update({
+        "city": city,
+        "country": country,
+        "country_code": country_code,
+        "location_summary": f"{city}, {country}" + (f" ({country_code})" if country_code else "")
+    })
+
+    # Optional: Log for debugging
+    print(f"[LOCATION] User in: {city}, {country} ({country_code})")
+
+    # Pass to your existing use_chat (no other changes needed)
+    response = use_chat(payload)
 
     return {
         "role": "assistant",
         "content": response["reply"]
     }
+
 
 @app.post("/analyze-image")
 async def analyze_image(file: UploadFile = File(...)):
@@ -246,7 +288,6 @@ def analyze_submission(submission: Submission):
 
 @app.post("/generate-tasks")
 def generate_tasks(request: TaskGenerationRequest):
-    """Generate a list of 10 personalized tasks using Gemini."""
     try:
         # Load the prompt template
         prompt_template = load_md("ai_engine/prompts/task_generation.md")
@@ -254,13 +295,34 @@ def generate_tasks(request: TaskGenerationRequest):
         if not prompt_template:
             return {"error": "Could not load task generation prompt."}
 
-        # Fill in the details
+        # Fill in the original placeholders
         prompt = prompt_template.replace("{track}", request.track)
-        prompt = prompt.replace("{experience_level}", request.experience_level)
-        prompt = prompt.replace("{task_number}", str(request.task_number))
-        prompt = prompt.replace("{previous_performance}", request.previous_task_performance or "N/A (First Task)")
+        prompt = prompt_template.replace("{experience_level}", request.experience_level)
+        prompt = prompt_template.replace("{task_number}", str(request.task_number))
+        prompt = prompt_template.replace("{previous_performance}", request.previous_task_performance or "N/A (First Task)")
 
-        # Get model with JSON generation config
+        # === NEW: Add location context to the prompt ===
+        city = request.user_city or "an unspecified city"
+        country = request.user_country or "an unspecified country"
+        country_code = request.user_country_code or ""
+
+        location_context = f"{city}, {country}"
+        if country_code:
+            location_context += f" ({country_code})"
+
+        # Only add location if it's meaningful
+        if "unspecified" not in city.lower() and "unspecified" not in country.lower():
+            location_line = f"The intern is located in {location_context}."
+        else:
+            location_line = "The intern's location is not specified."
+
+        # Insert location info clearly into the prompt
+        prompt += f"\n\n=== INTERN LOCATION CONTEXT ===\n{location_line}\nUse this to select real, existing local companies and context-appropriate scenarios."
+
+        # Optional: Log for debugging
+        print(f"[TASK GEN] Generating task for intern in: {location_context}")
+
+        # Get model with JSON output
         model = genai.GenerativeModel(
             model_name=os.environ.get("GENAI_MODEL", "gemini-2.5-flash"),
             generation_config={"response_mime_type": "application/json"}
@@ -268,18 +330,15 @@ def generate_tasks(request: TaskGenerationRequest):
         
         response = model.generate_content(prompt)
         
-        # Return the raw JSON string (FastAPI will serialize it as a string field, 
-        # or we can parse it to return a real JSON object)
         import json
         try:
             tasks_data = json.loads(response.text)
             return tasks_data
-        except json.JSONDecodeError:
-            return {"error": "Failed to parse AI response", "raw": response.text}
+        except json.JSONDecodeError as e:
+            return {"error": "Failed to parse AI response", "raw": response.text, "parse_error": str(e)}
 
     except Exception as e:
         return {"error": f"Error generating tasks: {str(e)}"}
-
 
 @app.post("/get-hint")
 def get_hint(request: HintRequest):
@@ -299,6 +358,86 @@ def get_hint(request: HintRequest):
         return {"hint": response.text}
     except Exception as e:
         return {"error": f"Error generating hint: {str(e)}"}
+
+
+@app.post("/generate-cv")
+def generate_cv(request: CVGenerationRequest):
+    try:
+        # 1. Load the CV prompt template
+        prompt_template = load_md("ai_engine/prompts/cv_generation.md")
+        
+        if not prompt_template:
+            return {"error": "Could not load CV generation prompt."}
+
+        # 2. Fetch intern's completed tasks and feedback from Supabase
+        # Adjust table/column names if yours are different
+        supabase_response = supabase.table('tasks')\
+            .select('title, brief_content, completed')\
+            .eq('user', request.user_id)\
+            .eq('completed', True)\
+            .order('id', ascending=True)\
+            .execute()
+
+        tasks = supabase_response.data or []
+
+        # You probably have a submissions or feedback table — example:
+        feedback_response = supabase.table('submissions')\
+            .select('task_id, feedback, grade')\
+            .eq('user_id', request.user_id)\
+            .execute()
+
+        feedback_by_task = {f['task_id']: f for f in feedback_response.data or []}
+
+        # 3. Build formatted task + feedback list
+        tasks_context = []
+        for task in tasks:
+            feedback = feedback_by_task.get(task['id'], {})
+            feedback_text = feedback.get('feedback', 'No detailed feedback recorded.')
+            grade = feedback.get('grade', 'Not graded')
+
+            tasks_context.append(
+                f"- Task: {task['title']}\n"
+                f"  Description: {task['brief_content']}\n"
+                f"  Feedback: {feedback_text}\n"
+                f"  Grade/Outcome: {grade}"
+            )
+
+        tasks_section = "\n\n".join(tasks_context) if tasks_context else "No tasks completed yet."
+
+        # 4. Overall summary (you can make this smarter later)
+        completion_rate = f"{len(tasks)} tasks completed"
+        overall_notes = f"Intern showed {'strong' if len(tasks) >= 8 else 'developing'} independence and professionalism in the {request.track} track."
+
+        # 5. Build full prompt
+        full_prompt = f"""
+{prompt_template}
+
+=== INTERN CONTEXT ===
+Name: {request.user_name}
+Track: {request.track}
+Internship Period: {request.start_date} – {request.end_date or "Present"}
+
+Completed Tasks and Feedback:
+{tasks_section}
+
+Overall Performance Notes:
+- {completion_rate}
+- {overall_notes}
+"""
+
+        # 6. Call Gemini (same as task generation)
+        model = genai.GenerativeModel(
+            model_name=os.environ.get("GENAI_MODEL", "gemini-2.5-flash")
+        )
+        response = model.generate_content(full_prompt)
+        cv_markdown = response.text.strip()
+        return {
+            "cv_content": cv_markdown
+        }
+    except Exception as e:
+        import traceback
+        print(f"[CV ERROR] {traceback.format_exc()}")
+        return {"error": f"Failed to generate CV: {str(e)}"}
 
 
 # Serve frontend static files and index if available

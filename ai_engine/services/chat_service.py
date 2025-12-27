@@ -51,7 +51,28 @@ def use_chat(payload):
             prompt_sections.append("# System Prompt:\n" + system_prompt)
         if knowledge:
             prompt_sections.append("# Knowledge:\n" + knowledge)
-        prompt_sections.append(f"The User's data is: \n{user_info}")
+        # Clean, structured user context — lets the system prompt do its job
+            user_name = user_info.get('name', 'Intern')
+            task_title = user_info.get('task_title', 'current assignment')
+            city = user_info.get('city', 'your city')
+            country = user_info.get('country', 'your country')
+            country_code = user_info.get('country_code', '')
+
+            location_context = f"{city}, {country}"
+            if country_code:
+                location_context += f" ({country_code})"
+
+            # Only include location if it's meaningful
+            if "your city" in city.lower() or "your country" in country.lower():
+                location_line = "Location: Not specified."
+            else:
+                location_line = f"Location: {location_context}."
+
+            prompt_sections.append(f"""Current Intern Context:
+            - Name: {user_name}
+            - Current Task: {task_title}
+            - {location_line}
+            """)
         prompt_sections.append(f"Previous Chat history: {user_chat_history}")
         prompt_sections.append("# User Message:\n" + user_msg)
         # prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
