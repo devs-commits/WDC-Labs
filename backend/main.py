@@ -70,77 +70,17 @@ class HintRequest(BaseModel):
     userContext: str | None = None
 
 
-
-
-def get_location_from_ip(ip: str):
-    """
-    Get approximate location from IP using ip-api.com
-    Returns dict with country, country_code, city
-    """
-    # Skip for local development IPs
-    if ip in {"127.0.0.1", "::1", "localhost"}:
-        return {
-            "country": "Local Development",
-            "country_code": "DEV",
-            "city": "Your Computer"
-        }
-
-    try:
-        # ip-api.com is free, no API key, rate-limited but fine for low-medium traffic
-        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
-        data = response.json()
-
-        if data.get("status") == "success":
-            return {
-                "country": data.get("country"),
-                "country_code": data.get("countryCode"),  # e.g., "NG", "US", "GB"
-                "city": data.get("city"),
-                "region": data.get("regionName")
-            }
-    except Exception as e:
-        print(f"Geolocation error: {e}")
-
-    # Fallback
-    return {
-        "country": "Unknown",
-        "country_code": "XX",
-        "city": "Unknown"
-    }
-
-
 # Define API routes BEFORE mounting static files
 @app.post("/chat")
-async def chat(payload: ChatMessage, request: Request):
-    """Handle chat messages using Gemini model with location awareness."""
-    client_ip = request.client.host
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
-    location = get_location_from_ip(client_ip)
+async def chat(payload: ChatMessage):
+    """Handle chat messages using Gemini model."""
 
-    # Inject location into user_info
-    payload.user_info.update({
-        # "ip": client_ip,        # Optional: comment out if you don't want IP shown
-        "country": location["country"],
-        "country_code": location["country_code"],
-        "city": location["city"]
-    })
-
-    print(f"[TEST MODE] Simulating chat from {location['city']}, {location['country']} ({location['country_code']})")
-
-    # Call your chat function
-    response = use_chat(payload)
+    response = use_chat(payload.user_info)
 
     return {
-    "role": "assistant",
-    "content": response["reply"],
-    "user_location": {              
-        "city": location["city"],
-        "country": location["country"],
-        "country_code": location["country_code"]
+        "role": "assistant",
+        "content": response["reply"]
     }
-}
-
 
 @app.post("/analyze-image")
 async def analyze_image(file: UploadFile = File(...)):
@@ -155,7 +95,7 @@ async def analyze_image(file: UploadFile = File(...)):
             "Analyze this image and provide insights professionally.",
             image
         ])
-        
+
         return {"reply": response.text}
     except Exception as e:
         return {"reply": f"Error analyzing image: {str(e)}"}
@@ -167,18 +107,19 @@ async def transcribe_audio(file: UploadFile = File(...)):
     try:
         # Read audio file
         audio_data = await file.read()
-        
+
         # Upload file to Gemini (using File API)
         audio_file = genai.upload_file(io.BytesIO(audio_data), mime_type=file.content_type)
-        
+
         # Send audio to Gemini for transcription and analysis
         chat_prompt = "Transcribe this audio and provide a response as Miss Emem."
         response = get_model().generate_content([chat_prompt, audio_file])
-        
+
         # Clean up uploaded file
         genai.delete_file(audio_file.name)
-        
+
         return {"reply": response.text}
+
     except Exception as e:
         return {"reply": f"Error transcribing audio: {str(e)}"}
 
