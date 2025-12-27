@@ -18,7 +18,6 @@ from PIL import Image
 from ai_engine.services.chat_service import use_chat, get_model
 from ai_engine.utils import load_md
 
-from backend import mock_methods
 
 app = FastAPI()
 

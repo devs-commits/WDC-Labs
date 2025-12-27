@@ -10,7 +10,6 @@ import google.generativeai as genai
 
 from ai_engine.utils import load_md
 from ai_engine.category_detector import detect_category, get_md_for_category
-from backend import mock_methods
 
 """ 
 ai_engine.services.chat_service. This module should not perform network or API calls at import time. 
