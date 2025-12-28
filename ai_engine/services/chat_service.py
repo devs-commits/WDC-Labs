@@ -10,13 +10,10 @@ import google.generativeai as genai
 
 from ai_engine.utils import load_md
 from ai_engine.category_detector import detect_category, get_md_for_category
-from backend import mock_methods
 
-"""ai_engine.services.chat_service
-
-This module should not perform network or API calls at import time. The
-Generative AI model and chats are initialized lazily inside `use_chat` to
-avoid failures during application startup.
+""" 
+ai_engine.services.chat_service. This module should not perform network or API calls at import time. 
+The Generative AI model and chats are initialized lazily inside `use_chat` to avoid failures during application startup. 
 """
 
 GREETING_RULES = (
@@ -46,7 +43,6 @@ def use_chat(payload):
         system_prompt = load_md("ai_engine/prompts/system_emem.md")
         md_path = get_md_for_category(category)
         knowledge = load_md(md_path)
-        week_task = mock_methods.get_task()
 
         # Build final prompt sections ...
         prompt_sections = []
@@ -54,10 +50,31 @@ def use_chat(payload):
             prompt_sections.append("# System Prompt:\n" + system_prompt)
         if knowledge:
             prompt_sections.append("# Knowledge:\n" + knowledge)
-        prompt_sections.append(f"The User's data is: \n{user_info}")
+        # Clean, structured user context — lets the system prompt do its job
+            user_name = user_info.get('name', 'Intern')
+            task_title = user_info.get('task_title', 'current assignment')
+            city = user_info.get('city', 'your city')
+            country = user_info.get('country', 'your country')
+            country_code = user_info.get('country_code', '')
+
+            location_context = f"{city}, {country}"
+            if country_code:
+                location_context += f" ({country_code})"
+
+            # Only include location if it's meaningful
+            if "your city" in city.lower() or "your country" in country.lower():
+                location_line = "Location: Not specified."
+            else:
+                location_line = f"Location: {location_context}."
+
+            prompt_sections.append(f"""Current Intern Context:
+            - Name: {user_name}
+            - Current Task: {task_title}
+            - {location_line}
+            """)
         prompt_sections.append(f"Previous Chat history: {user_chat_history}")
         prompt_sections.append("# User Message:\n" + user_msg)
-        prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
+        # prompt_sections.append(" The tasks for the current week the user is in are: \n" + str(week_task))
         prompt_sections.append(f"Greeting rules: {GREETING_RULES} greeted_today: {greeted_today}")
 
         final_prompt = "\n\n".join(prompt_sections)
@@ -94,4 +111,3 @@ def use_chat(payload):
         error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
         print(f"[ERROR] {error_msg}")
         return {"reply": "Something went wrong, please try again"}
-
