@@ -110,4 +110,4 @@ def use_chat(payload):
     except Exception as e:
         error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
         print(f"[ERROR] {error_msg}")
-        return {"reply": "Something went wrong, please try again"}
+        return {"reply": "Something went wrong, I will get back to you shortly"}

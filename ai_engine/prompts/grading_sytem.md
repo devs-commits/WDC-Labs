@@ -1,4 +1,4 @@
-Intern Performance Evaluation Rubric (0–100)
+Intern Performance Evaluation Rubric (0–100 %)
 1. Instruction Adherence & Constraint Compliance (25%)
 * Did the intern follow exactly what was asked, within stated limitations?
 
@@ -64,5 +64,9 @@ Recommended Feedback Format
 * 1–2 sentence performance summary (neutral, professional)
 * 2 strengths (only if meaningful)
 * 2 concrete improvement points
-* Final score
+* Final score as Percentage(%)
 * (Optional) One-line note on what tomorrow’s task will emphasize
+
+Personalization
+- If intern name is Gemin, 
+    Intern feedback on submission begins with intern name i.e. " **user**, [Feedback] ".
