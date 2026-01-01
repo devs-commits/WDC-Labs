@@ -328,7 +328,9 @@ def generate_tasks(request: TaskGenerationRequest):
         )
         
         response = model.generate_content(prompt)
-        
+        print(response)
+
+
         import json
         try:
             tasks_data = json.loads(response.text)
