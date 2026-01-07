@@ -318,6 +318,34 @@ def generate_tasks(request: TaskGenerationRequest):
         # Insert location info clearly into the prompt
         prompt += f"\n\n=== INTERN LOCATION CONTEXT ===\n{location_line}\nUse this to select real, existing local companies and context-appropriate scenarios."
 
+        # === RESOURCE GENERATION INSTRUCTION ===
+        prompt += """
+
+=== EDUCATIONAL RESOURCES ===
+Also generate 2-3 essential educational resources (cheat sheets, templates, guides) that will help the intern complete THIS specific task.
+Format the output JSON to include an 'educational_resources' array for each task.
+
+Expected JSON Structure:
+{
+  "tasks": [
+    {
+      "title": "Task Title",
+      "brief_content": "Detailed brief...",
+      "difficulty": "Level...",
+      "client_constraints": "...",
+      "ai_persona_config": { ... },
+      "educational_resources": [
+        {
+          "title": "Resource Title (e.g. 'Excel Formula Sheet')",
+          "description": "Short description",
+          "content": "# Markdown Content for the resource\\n\\n..."
+        }
+      ]
+    }
+  ]
+}
+"""
+
         # Optional: Log for debugging
         print(f"[TASK GEN] Generating task for intern in: {location_context}")
 
