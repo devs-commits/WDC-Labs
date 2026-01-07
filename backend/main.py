@@ -8,8 +8,8 @@ import mimetypes
 import requests
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, File
-from fastapi import Request
+from fastapi import FastAPI, UploadFile, File, Request
+from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -77,6 +77,8 @@ class CVGenerationRequest(BaseModel):
     track: str
     start_date: str  # e.g., "2025-12-01"
     end_date: str | None = None  # Optional, use "Present" if ongoing
+    tasks: List[dict]
+    feedback: List[dict]
 
 
 @app.post("/chat")
@@ -391,76 +393,62 @@ def get_hint(request: HintRequest):
 def generate_cv(request: CVGenerationRequest):
     try:
         # 1. Load the CV prompt template
-        prompt_template = load_md("ai_engine/prompts/cv_generation.md")
-        
+        prompt_template = load_md("ai_engine/prompts/cv.md")
         if not prompt_template:
             return {"error": "Could not load CV generation prompt."}
 
-        # 2. Fetch intern's completed tasks and feedback from Supabase
-        # Adjust table/column names if yours are different
-        supabase_response = supabase.table('tasks')\
-            .select('title, brief_content, completed')\
-            .eq('user', request.user_id)\
-            .eq('completed', True)\
-            .order('id', ascending=True)\
-            .execute()
-
-        tasks = supabase_response.data or []
-
-        # You probably have a submissions or feedback table — example:
-        feedback_response = supabase.table('submissions')\
-            .select('task_id, feedback, grade')\
-            .eq('user_id', request.user_id)\
-            .execute()
-
-        feedback_by_task = {f['task_id']: f for f in feedback_response.data or []}
+        # 2. Use tasks and feedback from the request directly
+        tasks = request.tasks or []
+        feedback_by_task = {f['task_id']: f for f in (request.feedback or [])}
 
         # 3. Build formatted task + feedback list
         tasks_context = []
         for task in tasks:
-            feedback = feedback_by_task.get(task['id'], {})
+            feedback = feedback_by_task.get(task.get('id'), {})
             feedback_text = feedback.get('feedback', 'No detailed feedback recorded.')
             grade = feedback.get('grade', 'Not graded')
 
             tasks_context.append(
-                f"- Task: {task['title']}\n"
-                f"  Description: {task['brief_content']}\n"
+                f"- Task: {task.get('title')}\n"
+                f"  Description: {task.get('brief_content')}\n"
                 f"  Feedback: {feedback_text}\n"
                 f"  Grade/Outcome: {grade}"
             )
 
         tasks_section = "\n\n".join(tasks_context) if tasks_context else "No tasks completed yet."
 
-        # 4. Overall summary (you can make this smarter later)
+        # 4. Overall summary
         completion_rate = f"{len(tasks)} tasks completed"
         overall_notes = f"Intern showed {'strong' if len(tasks) >= 8 else 'developing'} independence and professionalism in the {request.track} track."
 
         # 5. Build full prompt
         full_prompt = f"""
-{prompt_template}
+        {prompt_template}
 
-=== INTERN CONTEXT ===
-Name: {request.user_name}
-Track: {request.track}
-Internship Period: {request.start_date} – {request.end_date or "Present"}
+        === INTERN CONTEXT ===
+        Name: {request.user_name}
+        Track: {request.track}
+        Internship Period: {request.start_date} – {request.end_date or "Present"}
 
-Completed Tasks and Feedback:
-{tasks_section}
+        Completed Tasks and Feedback:
+        {tasks_section}
 
-Overall Performance Notes:
-- {completion_rate}
-- {overall_notes}
-"""
+        Overall Performance Notes:
+        - {completion_rate}
+        - {overall_notes}
+        """
 
-        # 6. Call Gemini (same as task generation)
+        # 6. Call Gemini
         model = genai.GenerativeModel(
             model_name=os.environ.get("GENAI_MODEL", "gemini-2.5-flash")
         )
         response = model.generate_content(full_prompt)
         cv_markdown = response.text.strip()
+
         return {
             "cv_content": cv_markdown
         }
+
     except Exception as e:
         import traceback
         print(f"[CV ERROR] {traceback.format_exc()}")
